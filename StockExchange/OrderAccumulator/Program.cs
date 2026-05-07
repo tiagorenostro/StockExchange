@@ -1,3 +1,24 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿var builder = Host.CreateApplicationBuilder();
 
-Console.WriteLine("Hello, World!");
+var configuracao = builder.Configuration.GetSection(nameof(AppSettings)).Get<AppSettings>()!;
+
+builder.Services.AddLogging(logging => logging.AddConsole());
+builder.Services.AddSingleton<IApplication, AcceptorApplication>();
+builder.Services.AddSingleton(new SessionSettings(Path.Combine(AppContext.BaseDirectory, configuracao.PathFileConfigurationQuickFIX)));
+builder.Services.AddSingleton<IMessageStoreFactory, FileStoreFactory>();
+builder.Services.AddSingleton<IAcceptor>(sp => 
+{
+    var app = sp.GetRequiredService<IApplication>();
+    var storeFactory = sp.GetRequiredService<IMessageStoreFactory>();
+    var sessionSettings = sp.GetRequiredService<SessionSettings>();
+    var logger = sp.GetRequiredService<ILoggerFactory>();
+    
+    return new ThreadedSocketAcceptor(app, storeFactory, sessionSettings, logger);
+});
+
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddSingleton<IShareRepository, ShareRepository>();
+builder.Services.AddHostedService<OrderAccumulatorWorker>();
+
+await builder.Build()
+    .RunAsync();
