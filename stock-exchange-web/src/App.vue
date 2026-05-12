@@ -64,6 +64,7 @@
                 <th>Operation</th>
                 <th>Price</th>
                 <th>Amount</th>
+                <th>Operating Value</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -73,6 +74,7 @@
                 <td :class="order.side === 'B' ? 'text-buy' : 'text-sell'">{{ order.side === 'B' ? 'BUY' : 'SELL' }}</td>
                 <td class="font-mono">R$ {{ order.price.toLocaleString('pt-BR') }}</td>
                 <td class="font-mono">{{ order.amount }}</td>
+                <td class="font-mono">R$ {{ order.operatingValue.toLocaleString('pt-BR') }}</td>
                 <td>
                   <span class="badge" :class="order.status === 'E' ? 'bg-success' : 'bg-error'">
                     {{ order.status === 'E' ? 'Executed' : 'Rejected' }}
@@ -85,6 +87,17 @@
       </section>
     </div>
   </main>
+  <transition-group name="toast" tag="div" class="toast-container">
+  <div v-for="toast in toasts" :key="toast.id" class="toast" :class="toast.type">
+    <div class="toast-content">
+      <span class="toast-icon">{{ toast.type === 'success' ? '✅' : '❌' }}</span>
+      <div class="toast-text">
+        <div class="toast-title">{{ toast.title }}</div>
+        <div class="toast-msg">{{ toast.message }}</div>
+      </div>
+    </div>
+  </div>
+</transition-group>
 </template>
 
 
@@ -96,6 +109,7 @@ const errors = ref({})
 const ordersExecuted = ref([])
 const shares = ref([])
 const isConnected = ref(false)
+const toasts = ref([])
 
 const order = reactive({
   symbol: '',
@@ -107,17 +121,18 @@ let connection = null;
 
 async function fetchShares() {
   try {
-    const response = await fetch('http://localhost:5151/api/share')
+    const response = await fetch('http://localhost:5151/api/share/all')
     if (response.ok) {
       shares.value = await response.json()
     }
   } catch (e) {
-    alert("Error searching for wallet.")
+    showToast('', "Error searching for wallet.", 'error')
   }
 }
 
 onMounted(() => {
   fetchShares();
+  getOrders();
   connection = new signalR.HubConnectionBuilder()
       .withUrl("http://localhost:5151/tradingHub")
       .withAutomaticReconnect()
@@ -126,8 +141,19 @@ onMounted(() => {
   connection.off("OrderReportReceived");
 
   connection.on("OrderReportReceived", (report) => {
-      ordersExecuted.value.unshift(report);
       fetchShares();
+
+      const status = report.status === 'E' ? 'success' : 'error';
+      const action = report.side === 'B' ? 'Buy' : 'Sell';
+      const title = report.status === 'E' ? 'Order Executed' : 'Order Rejected';
+
+      showToast(
+        title, 
+        `${action} de ${report.amount} un. de ${report.symbol} a R$ ${report.price.toLocaleString('pt-BR')}`,
+        status
+      );
+
+      getOrders();
   });
 
   connection.start()
@@ -136,9 +162,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (connection) {
-        connection.stop();
-    }
+  if (connection) {
+      connection.stop();
+  }
 });
 
 function handlePriceInput(event) {
@@ -160,11 +186,26 @@ function handlePriceInput(event) {
   }
 }
 
+async function getOrders() {
+  try {
+    const response = await fetch('http://localhost:5151/api/order/all', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    
+    if (isResponseSuccess(response)) {
+      ordersExecuted.value = await response.json();
+    }
+  } catch (error) {
+    showToast("", "The requested orders could not be obtained.", 'error')
+  }
+}
+
 async function sendOrder(type) {
   errors.value = {}
 
   if (!order.symbol || !order.price || !order.amount) {
-    alert("Fill in all the fields.")
+    showToast("", "Fill in all the fields.", 'error')
     return
   }
 
@@ -182,15 +223,15 @@ async function sendOrder(type) {
       body: JSON.stringify(payload)
     })
 
-    if (response.status >= 200 && response.status <= 299) {
-      alert("Order sent successfully!");
+    if (isResponseSuccess(response)) {
+      showToast("", "Order sent successfully!");
       resetForm();
       return;
     }
     else {
       const errorData = await response.json();
       
-      alert(errorData.details);
+      showToast("", errorData.details, 'error');
 
       if (errorData.fields) {
         errorData.fields.forEach(field => {
@@ -199,8 +240,21 @@ async function sendOrder(type) {
       }
     }
   } catch (error) {
-    alert("We were unable to send your order.")
+    showToast("", "We were unable to send your order.", 'error')
   }
+}
+
+function isResponseSuccess(response) {
+  return response.status >= 200 && response.status <= 299
+}
+
+function showToast(title, message, type = 'success') {
+  const id = Date.now();
+  toasts.value.push({ id, title, message, type });
+  
+  setTimeout(() => {
+    toasts.value = toasts.value.filter(t => t.id !== id);
+  }, 4000);
 }
 
 function clearError(fieldName) {
@@ -387,5 +441,45 @@ input::placeholder {
 .pos-avg { font-size: 10px; color: #bdc3c7; }
 
 .empty-mini { font-size: 12px; color: #7f8c8d; text-align: center; padding: 20px; }
+
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast {
+  min-width: 280px;
+  padding: 16px;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  border-left: 6px solid #ccc;
+}
+
+.toast.success { border-left-color: #28a745; }
+.toast.error { border-left-color: #dc3545; }
+
+.toast-content { display: flex; align-items: center; gap: 12px; }
+.toast-icon { font-size: 20px; }
+.toast-title { font-weight: bold; font-size: 14px; margin-bottom: 2px; }
+.toast-msg { font-size: 12px; color: #666; }
+.toast-enter-active, .toast-leave-active {
+  transition: all 0.4s ease;
+}
+.toast-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+.toast-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
 
 </style>

@@ -1,31 +1,34 @@
 namespace OrderGenerator.API.Domain;
 
-public class Share(string? symbol)
+public class Share
 {
-    public string? Symbol { get; set; } = symbol;
-    public int TotalAmount { get; set; }
-    public decimal AveragePrice { get; set; }
-    public decimal FinancialExposure { get; set; }
-    public ICollection<Guid> CodeOrders { get; set; } = [];
+    private readonly List<Guid> _orderCodes = [];
+    
+    public Guid Code { get; }
+    public string? Symbol { get; private set; }
+    public int TotalAmount { get; private set; }
+    public decimal AveragePrice { get; private set; }
+    public decimal FinancialExposure { get; private set; }
+    public char Status { get; private set; }
+    public IReadOnlyCollection<Guid> OrderCodes => _orderCodes;
 
-    public void ProcessOrder(Order order)
+    private Share(string symbol)
     {
-        if (order.OrderRejected())
-        {
-            AddOrder(order);
-            return;
-        }
+        Code = Guid.NewGuid();
+        Symbol = symbol;
         
-        CalculateFinancialExposure(order);
-        
-        if (order.IsOrderSell())
-        {
-            AddSalesOrder(order);
-            return;
-        }
-        
-        AddPurchaseOrder(order);
-        CalculateAveragePrice();
+        SetStatus(Constants.Status.New);
+    }
+    
+    private void SetStatus(char status) => Status = status;
+
+    private void CalculateAveragePrice() =>   
+        AveragePrice = FinancialExposure / TotalAmount;
+    
+    private void AddOrder(Order order)
+    {
+        if (!_orderCodes.Contains(order.Code))
+            _orderCodes.Add(order.Code);
     }
     
     private void CalculateFinancialExposure(Order order)
@@ -50,18 +53,50 @@ public class Share(string? symbol)
     private void AddSalesOrder(Order order)
     {
         if (order.Amount > TotalAmount)
-            order.Amount = TotalAmount;
+            order.SetAmount(TotalAmount);
         
         TotalAmount -= order.Amount;
 
-        if (TotalAmount == 0)
+        if (IsNoPosition())
             AveragePrice = 0;
             
         AddOrder(order);
     }
+    
+    public bool IsNoPosition() => TotalAmount == 0;
 
-    private void AddOrder(Order order) => CodeOrders.Add(order.Code);
+    public void SetActiveAsNoPosition()
+    {
+        TotalAmount = 0;
+        SetStatus(Constants.Status.Long);
+    } 
+    
+    public void ProcessOrder(Order order)
+    {
+        order.LinkShare(Code);
+        
+        if (order.IsOrderRejected())
+        {
+            AddOrder(order);
+            return;
+        }
+        
+        CalculateFinancialExposure(order);
+        
+        if (order.IsOrderSell())
+        {
+            AddSalesOrder(order);
+            return;
+        }
+        
+        SetStatus(Constants.Status.Flat);
+        AddPurchaseOrder(order);
+        CalculateAveragePrice();
+    }
 
-    private void CalculateAveragePrice() =>   
-        AveragePrice = FinancialExposure / TotalAmount;
+    public static Result<Share> Create(string? symbol) =>
+        symbol!.Length is < Constants.Symbol.MinimumSymbolSize or > Constants.Symbol.MaximumSymbolSize ? 
+            Result<Share>.Fail(new Error(ErrorType.Validation, MessageError.UnprocessedOrder, 
+                [new Field(nameof(Symbol), MessageError.SymbolIsLong)])) : 
+            Result<Share>.Ok(new Share(symbol));
 }

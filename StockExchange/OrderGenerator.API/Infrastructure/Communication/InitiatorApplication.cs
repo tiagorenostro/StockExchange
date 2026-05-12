@@ -3,7 +3,7 @@ namespace OrderGenerator.API.Infrastructure.Communication;
 public interface IInitiatorApplication : IApplication
 {
     event Action<OrderReportDto> OnProcessOrderReportReceived;
-    Result SendOrder(OrderRequestDto orderDto, Guid codeOrder);
+    Result SendOrder(Order order);
 }
 
 public class InitiatorApplication : MessageCracker, IInitiatorApplication
@@ -17,11 +17,9 @@ public class InitiatorApplication : MessageCracker, IInitiatorApplication
     public void FromAdmin(QuickFix.Message message, SessionID sessionID) { }
     public void ToApp(QuickFix.Message message, SessionID sessionID) { }
 
-    public void OnLogon(SessionID sessionID) { IsConnected = true; }
-    public void OnLogout(SessionID sessionID) { IsConnected = false; }
-    
-    public void FromApp(QuickFix.Message message, SessionID sessionID) =>
-        Crack(message, sessionID);
+    public void OnLogon(SessionID sessionID) => IsConnected = true;
+    public void OnLogout(SessionID sessionID) => IsConnected = false;
+    public void FromApp(QuickFix.Message message, SessionID sessionID) => Crack(message, sessionID);
 
     public void OnCreate(SessionID sessionID)
     {
@@ -34,36 +32,35 @@ public class InitiatorApplication : MessageCracker, IInitiatorApplication
     public void OnMessage(ExecutionReport report, SessionID sessionID) =>
         OnProcessOrderReportReceived.Invoke(ConvertReport(report));
 
-    public Result SendOrder(OrderRequestDto orderDto, Guid codeOrder)
+    public Result SendOrder(Order order)
     {
         if (!IsConnected) 
-            return Result.Fail(MessageError.NotPossibleNewOrder);
+            return Result.Fail(ErrorType.ExternalError, MessageError.NotPossibleNewOrder);
         
-        var send = Session.SendToTarget(PrepareShipmentOrder(orderDto, codeOrder), Session.SessionID);
+        var send = Session.SendToTarget(PrepareShipmentOrder(order), Session.SessionID);
             
-        return send ? Result.Ok() : Result.Fail(MessageError.NotPossibleNewOrder);
+        return send ? Result.Ok() : Result.Fail(ErrorType.ExternalError, MessageError.NotPossibleNewOrder);
     }
-       
     
-    private static NewOrderSingle PrepareShipmentOrder(OrderRequestDto orderRequestDto, Guid codeOrder)
+    private static NewOrderSingle PrepareShipmentOrder(Order order)
     {
-        var order = new NewOrderSingle(
-            new ClOrdID(codeOrder.ToString()),
-            new Symbol(orderRequestDto.Symbol!),
-            PrepareSide(orderRequestDto),
+        var newOrderSingle = new NewOrderSingle(
+            new ClOrdID(order.Code.ToString()),
+            new QuickFix.Fields.Symbol(order.Symbol),
+            PrepareSide(order.Side),
             new TransactTime(DateTime.Now),
             new OrdType(OrdType.MARKET));
                 
-        order.Set(new HandlInst(HandlInst.MANUAL_ORDER));
-        order.Set(new OrderQty(orderRequestDto.Amount.GetValueOrDefault()));
-        order.Set(new TimeInForce(TimeInForce.DAY));
-        order.Set(new Price(orderRequestDto.Price.GetValueOrDefault()));
+        newOrderSingle.Set(new HandlInst(HandlInst.MANUAL_ORDER));
+        newOrderSingle.Set(new OrderQty(order.Amount));
+        newOrderSingle.Set(new TimeInForce(TimeInForce.DAY));
+        newOrderSingle.Set(new Price(order.Price));
         
-        return order;
+        return newOrderSingle;
     }
 
-    private static QuickFix.Fields.Side PrepareSide(OrderRequestDto orderRequestDto) =>
-        orderRequestDto.Side switch
+    private static QuickFix.Fields.Side PrepareSide(char side) =>
+        side switch
         {
             Constants.Side.Buy => new QuickFix.Fields.Side(QuickFix.Fields.Side.BUY),
             Constants.Side.Sell => new QuickFix.Fields.Side(QuickFix.Fields.Side.SELL),
@@ -71,15 +68,12 @@ public class InitiatorApplication : MessageCracker, IInitiatorApplication
         };
 
     private static OrderReportDto ConvertReport(ExecutionReport report) =>
-        new()
-        {
-            CodeOrder = Guid.Parse(report.ClOrdID.Value),
-            Amount = report.IsSetOrderQty() ? report.OrderQty.Value : 0,
-            Symbol = report.IsSetSymbol() ? report.Symbol.Value : string.Empty,
-            Price = report.IsSetPrice() ? report.Price.Value : 0,
-            Status = DefineStatus(report),
-            Side = DefineSide(report)
-        };
+        new(Guid.Parse(report.ClOrdID.Value),
+            report.IsSetSymbol() ? report.Symbol.Value : string.Empty,
+            report.IsSetOrderQty() ? report.OrderQty.Value : 0,
+            report.IsSetPrice() ? report.Price.Value : 0,
+            DefineStatus(report),
+            DefineSide(report));
 
     private static char DefineStatus(ExecutionReport report) =>
         report.OrdStatus.Value switch

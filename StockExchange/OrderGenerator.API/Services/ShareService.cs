@@ -2,67 +2,69 @@ namespace OrderGenerator.API.Services;
 
 public interface IShareService
 {
-    Share Create(string symbol);
     void Save(Share share);
-    Share GetBySymbol(string symbol);
     void Process(Order order);
+    Result<ShareResponseDto> GetShare(Guid code);
     IEnumerable<ShareResponseDto> GetShares();
-    (Result, Share) CreateShareIfNotExist(OrderRequestDto dto);
-    Result ValidateTransactionValueAgainstTotalQuantity(Share share, OrderRequestDto dto);
+    Result<Share> CreateShareIfNotExist(NewOrderRequestDto dto);
+    Result ValidateTransactionValueAgainstTotalQuantity(Share share, NewOrderRequestDto dto);
 }
 
 public class ShareService : IShareService
 {
-    public Share Create(string symbol) =>
-        new(symbol);
-
-    public void Save(Share share) =>
-        InMemoryDb.Share[share.Symbol!] = share;
-
-    public Share GetBySymbol(string symbol) =>
-        InMemoryDb.Share.TryGetValue(symbol, out var share) ? share : null!;
-
     public void Process(Order order)
     {
-        var share = InMemoryDb.Share[order.Symbol];
+        var share = GetBySymbol(order.Symbol);
         share.ProcessOrder(order);
         
-        RemoveAssetNoPosition(share);
+        SetActiveAsNoPosition(share);
     }
 
+    public Result<ShareResponseDto> GetShare(Guid code) =>
+        InMemoryDb.Share.TryGetValue(code, out var share)
+            ? Result<ShareResponseDto>.Ok(ConvertToDto(share))
+            : Result<ShareResponseDto>.Fail(ErrorType.NotFound, MessageError.ShareNotFound);
+    
     public IEnumerable<ShareResponseDto> GetShares() =>
-        InMemoryDb.Share.Select(x => new ShareResponseDto
-        {
-            Symbol = x.Key,
-            AveragePrice = x.Value.AveragePrice,
-            FinancialExposure = x.Value.FinancialExposure,
-            TotalAmount = x.Value.TotalAmount
-        });
+        InMemoryDb.Share.Where(x => !x.Value.IsNoPosition())
+            .Select(x => ConvertToDto(x.Value));
 
-    public (Result, Share) CreateShareIfNotExist(OrderRequestDto dto)
+    public Result<Share> CreateShareIfNotExist(NewOrderRequestDto dto)
     {
         var share = GetBySymbol(dto.Symbol!);
 
         if (share is not null)
-            return (Result.Ok(), share);
+            return Result<Share>.Ok(share);
         
-        if (share is null && dto.Side.GetValueOrDefault() == Constants.Side.Sell)
-            return (Result.Fail("It is not possible to sell an asset that is not in your portfolio."), null)!;
+        if (dto.IsSellOrderRequest())
+            return Result<Share>.Fail(ErrorType.Validation, MessageError.NotHavingAssetsForSale);
 
-        share = Create(dto.Symbol!);
-        Save(share);
+        var createShareResult = Share.Create(dto.Symbol!);
+
+        if (!createShareResult.Success)
+            return createShareResult;
+
+        share = createShareResult.Value;
         
-        return (Result.Ok(), share);
+        return Result<Share>.Ok(share);
     }
+    
+    private static ShareResponseDto ConvertToDto(Share share) => new(share);
 
-    public Result ValidateTransactionValueAgainstTotalQuantity(Share share, OrderRequestDto dto) =>
-        dto.Side == Constants.Side.Sell && dto.Amount > share.TotalAmount ? 
-            Result.Fail("The transaction value cannot exceed the total quantity of the asset.") : 
-            Result.Ok();
-
-    private static void RemoveAssetNoPosition(Share share)
+    private static Share GetBySymbol(string symbol) =>
+        InMemoryDb.Share.FirstOrDefault(x => x.Value.Symbol == symbol).Value;
+    
+    public void Save(Share share) =>
+        InMemoryDb.Share[share.Code] = share;
+    
+    private static void SetActiveAsNoPosition(Share share)
     {
-        if (share.TotalAmount == 0)
-            InMemoryDb.Share.Remove(share.Symbol!, out _);
+        if (share.IsNoPosition())
+            share.SetActiveAsNoPosition();
     }
+
+    public Result ValidateTransactionValueAgainstTotalQuantity(Share share, NewOrderRequestDto dto) =>
+        dto.IsSellOrderRequest() && dto.Amount > share.TotalAmount ? 
+            Result.Fail(ErrorType.Validation, MessageError.OperationValueGreaterThanTheTotalAssetValue) : 
+            Result.Ok();
 }

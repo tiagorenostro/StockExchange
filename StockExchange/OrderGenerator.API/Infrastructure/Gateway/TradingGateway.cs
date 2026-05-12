@@ -2,11 +2,13 @@ namespace OrderGenerator.API.Infrastructure.Gateway;
 
 public interface ITradingGateway
 {
-    Result SendOrder(OrderRequestDto dto, Guid codeOrder);
+    Result SendOrder(Order order);
 }
 
 public class TradingGateway : ITradingGateway
 {
+    private const string Method = "OrderReportReceived";
+    
     private readonly IHubContext<TradingHub> _hubContext;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IInitiatorApplication _initiatorApplication;
@@ -23,10 +25,10 @@ public class TradingGateway : ITradingGateway
             await ProcessOrderReturnAsync(dto);
     }
     
-    public Result SendOrder(OrderRequestDto dto, Guid codeOrder) =>
-        _initiatorApplication.SendOrder(dto, codeOrder);
+    public Result SendOrder(Order order) =>
+        _initiatorApplication.SendOrder(order);
 
-    public async Task ProcessOrderReturnAsync(OrderReportDto dto)
+    private async Task ProcessOrderReturnAsync(OrderReportDto dto)
     {
         using (var scope = _serviceScopeFactory.CreateScope())
         {
@@ -38,5 +40,5 @@ public class TradingGateway : ITradingGateway
     }
     
     private async Task SendReturnOrderAsync(OrderReportDto dto) =>
-        await _hubContext.Clients.All.SendAsync("OrderReportReceived", dto);
+        await _hubContext.Clients.All.SendAsync(Method, dto);
 }

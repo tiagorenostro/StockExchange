@@ -1,9 +1,21 @@
 namespace OrderGenerator.API.Infrastructure.DTOs;
 
-public class ShareResponseDto
+public sealed record ShareResponseDto
 {
-    public string? Symbol { get; set; }
-    public int TotalAmount { get; set; }
-    public decimal AveragePrice { get; set; }
-    public decimal FinancialExposure { get; set; }
+    public Guid Code { get; init; }
+    public string? Symbol { get; init; } 
+    public int TotalAmount { get; init; }
+    public decimal AveragePrice { get; init; }
+    public decimal FinancialExposure { get; init; }
+    public IEnumerable<Guid> OrderCodes { get; init; }
+
+    public ShareResponseDto(Share share)
+    {
+        Code = share.Code;
+        Symbol = share.Symbol;
+        TotalAmount = share.TotalAmount;
+        AveragePrice = share.AveragePrice;
+        FinancialExposure = share.FinancialExposure;
+        OrderCodes = share.OrderCodes;
+    }
 }

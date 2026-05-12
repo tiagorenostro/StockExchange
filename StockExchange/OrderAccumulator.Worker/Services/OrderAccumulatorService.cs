@@ -7,30 +7,37 @@ public interface IOrderAccumulatorService
 
 public class OrderAccumulatorService : IOrderAccumulatorService
 {
+    public bool ValidateNewOrder(NewOrder newOrder) => 
+        ValidateValueExposure(newOrder);
+    
     private static bool ValidateValueExposure(NewOrder newOrder)
     {
-        InMemoryDb.Exposures.TryGetValue(newOrder.Symbol!, out var currentExposure);
+        decimal newValueExposure;
         
-        switch (newOrder.Side)
+        var currentExposure = GetCurrentExposure(newOrder.Symbol!);
+
+        if (newOrder.IsOrderBuy())
         {
-            case Constants.Side.Buy:
-            {
-                var updatedExposure = currentExposure + newOrder.TotalValue;
+            newValueExposure = currentExposure + newOrder.TotalValue;
 
-                if (updatedExposure > ValueExposure.LimitPerSymbol)
-                    return false;
-
-                InMemoryDb.Exposures[newOrder.Symbol!] = updatedExposure;
-                break;
-            }
-            case Constants.Side.Sell:
-                InMemoryDb.Exposures[newOrder.Symbol!] = currentExposure - newOrder.TotalValue;
-                break;
+            if (newValueExposure > ValueExposure.LimitPerSymbol)
+                return false;
         }
+        else
+            newValueExposure = currentExposure - newOrder.TotalValue;
+        
+        UpdateValueExposure(newOrder.Symbol!, newValueExposure);
 
         return true;
     }
 
-    public bool ValidateNewOrder(NewOrder newOrder) => 
-        ValidateValueExposure(newOrder);
+    private static decimal GetCurrentExposure(string symbol)
+    {
+        InMemoryDb.Exposures.TryGetValue(symbol, out var currentExposure);
+        
+        return currentExposure;
+    }
+    
+    private static void UpdateValueExposure(string symbol, decimal newValueExposure) =>
+        InMemoryDb.Exposures[symbol] = newValueExposure;
 }

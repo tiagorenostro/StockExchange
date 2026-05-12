@@ -4,39 +4,27 @@ public static class RouteOrder
 {
     public static void AddRouteOrder(this RouteGroupBuilder routeGroupBuilder)
     {
-        var routeGroup = routeGroupBuilder.MapGroup("order");
-
+        var routeGroup = routeGroupBuilder.MapGroup(nameof(Order));
+        
+        routeGroup.MapGet("{code:guid}", GetOrder);
+        routeGroup.MapGet("all", GetOrders);
         routeGroup.MapPost("new", CreateNewOrder);
     }
 
-    private static IResult CreateNewOrder([FromServices] IOrderService orderService, OrderRequestDto dto)
+    private static IResult GetOrder([FromServices] IOrderService orderService, [FromRoute] Guid code) =>
+        orderService.GetOrder(code)
+            .ToHttpResponse();
+    
+    private static IResult GetOrders([FromServices] IOrderService orderService) =>
+        orderService.GetOrders()
+            .ToHttpResponse();
+
+    private static IResult CreateNewOrder([FromServices] IOrderService orderService, NewOrderRequestDto dto)
     {
-        var isValid = ValidateRequest(dto, out var errorDto);
+        if (dto.IsInvalid(out var error))
+            return error!;
         
-        if (!isValid)
-            return TypedResults.BadRequest(errorDto);
-        
-        var createNewOrderResult = orderService.CreateNewOrder(dto);
-        
-        if (!createNewOrderResult.Success)
-            return TypedResults.BadRequest(new ErrorDto(createNewOrderResult.ErrorMessage, []));
-        
-        return TypedResults.Created();
-    }
-
-    private static bool ValidateRequest(OrderRequestDto dto, out ErrorDto errorDto)
-    {
-        var validationResults = new List<ValidationResult>();
-
-        var isValid = Validator.TryValidateObject(dto, new ValidationContext(dto), validationResults,
-            validateAllProperties: true);
-
-        errorDto = null!;
-        
-        if (!isValid)
-            errorDto = new ErrorDto(MessageError.UnprocessedOrder,
-                Fields: validationResults.Select(x => new Field(x.MemberNames.First(), x.ErrorMessage!)));
-
-        return isValid;
+        return orderService.CreateNewOrder(dto)
+            .ToCreatedResponse();
     }
 }

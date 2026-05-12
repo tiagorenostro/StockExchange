@@ -2,6 +2,8 @@ namespace OrderAccumulator.Worker.Infrastructure.Communication;
 
 public class AcceptorApplication(IOrderAccumulatorService orderAccumulatorService) : MessageCracker, IApplication
 {
+    private const string UnmappedSide = "Unmapped side.";
+    
     public void OnCreate(SessionID sessionID) { }
     public void OnLogout(SessionID sessionID) { }
     public void OnLogon(SessionID sessionID)  { }
@@ -49,6 +51,6 @@ public class AcceptorApplication(IOrderAccumulatorService orderAccumulatorServic
         {
             QuickFix.Fields.Side.BUY => Constants.Side.Buy,
             QuickFix.Fields.Side.SELL => Constants.Side.Sell,
-            _ => throw new ArgumentOutOfRangeException(nameof(side), side, "Unmapped side.")
+            _ => throw new ArgumentOutOfRangeException(nameof(side), side, UnmappedSide)
         };
 }

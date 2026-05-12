@@ -1,11 +1,8 @@
 namespace OrderGenerator.API.Infrastructure.DTOs;
 
-public class OrderReportDto
-{
-    public Guid CodeOrder { get; set; }
-    public string? Symbol { get; set; }
-    public decimal Amount { get; set; }
-    public decimal Price { get; set; }
-    public char Status { get; set; }
-    public char Side { get; set; }
-}
+public sealed record OrderReportDto(Guid CodeOrder,
+    string? Symbol,
+    decimal Amount,
+    decimal Price,
+    char Status,
+    char Side);
