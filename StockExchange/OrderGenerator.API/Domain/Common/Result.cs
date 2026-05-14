@@ -15,7 +15,6 @@ public readonly struct Result
     public static Result Fail(Error error) => new(false, error);
     public static Result Fail(ErrorType errorType, string message) => new(false, new Error(errorType, message, []));
     public Result OnSuccess(Func<Result> next) => !Success ? this : next();
-    public Result<T> OnSuccess<T>(Func<Result<T>> next) => !Success ? Result<T>.Fail(Error) : next();
 }
 
 public readonly struct Result<T>
@@ -31,17 +30,14 @@ public readonly struct Result<T>
         Error = error;
     }
     
-    public static implicit operator Result(Result<T> result) =>
-        result.Success 
-            ? Result.Ok() 
-            : Result.Fail(result.Error);
-    
     public static Result<T> Ok(T value) => new(true, value, default);
     public static Result<T> Fail(ErrorType errorType, string messageError) => new(false, default!, new Error(errorType, messageError, []));
     public static Result<T> Fail(ErrorType errorType, string messageError, IEnumerable<Field> fields) => 
         new(false, default!, new Error(errorType, messageError, fields));
     public static Result<T> Fail(Error error) => new(false, default!, error);
     public Result OnSuccess(Func<T, Result> next) => !Success ? Result.Fail(Error) : next(Value);
+    public Result<T> OnSuccess(Func<T, Result<T>> next) => !Success ? Fail(Error) : next(Value);
+    public Result<T> OnSuccess(Func<Result<T>> next) => !Success ? Fail(Error) : next();
 }
 
 public readonly struct Error(ErrorType errorType, string message, IEnumerable<Field> fields)

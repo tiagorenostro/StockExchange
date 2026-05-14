@@ -1,6 +1,6 @@
 namespace OrderAccumulator.Worker.Domain;
 
-public record NewOrder(string? Symbol, char Side, decimal TotalValue)
+public sealed record NewOrder(string? Symbol, char Side, decimal TotalValue)
 {
-    public bool IsOrderBuy() => Side == 'B';
+    public bool IsOrderBuy() => Side == Constants.Side.Buy;
 }

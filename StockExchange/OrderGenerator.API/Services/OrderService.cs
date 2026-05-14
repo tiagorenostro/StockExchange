@@ -25,12 +25,10 @@ public class OrderService(IShareService shareService,
 
     public Result CreateNewOrder(NewOrderRequestDto dto) =>
         ValidateTradingHours()
-            .OnSuccess(() => shareService.CreateShareIfNotExist(dto))
-            .OnSuccess(share => 
-                shareService.ValidateTransactionValueAgainstTotalQuantity(share, dto)
-                    .OnSuccess(() => CreateOrder(dto))
+            .OnSuccess(() => shareService.CreateShareIfNotExistAndValidate(dto)
+                .OnSuccess(share => CreateOrder(dto)
                     .OnSuccess(order => SaveOrderAndShare(share, order)
-                        .OnSuccess(() => PrepareToSend(order))));
+                        .OnSuccess(() => PrepareOrderToSend(order)))));
     
     public void ProcessOrderReturn(OrderReportDto dto)
     {
@@ -57,15 +55,11 @@ public class OrderService(IShareService shareService,
         return Result.Ok();
     }
 
-    private static Result<Order> CreateOrder(NewOrderRequestDto dto)
-    {
-        var newOrderResult = Order.CreateOrder(dto.Symbol!, dto.Amount.GetValueOrDefault(), 
+    private static Result<Order> CreateOrder(NewOrderRequestDto dto) =>
+        Order.CreateOrder(dto.Symbol!, dto.Amount.GetValueOrDefault(), 
             dto.Price.GetValueOrDefault(), dto.Side.GetValueOrDefault());
-        
-        return !newOrderResult.Success ? Result<Order>.Fail(newOrderResult.Error) : newOrderResult;
-    }
 
-    private Result PrepareToSend(Order order)
+    private Result PrepareOrderToSend(Order order)
     {
         order.Process(Status.Liquidation);
         

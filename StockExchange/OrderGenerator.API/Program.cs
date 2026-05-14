@@ -35,8 +35,8 @@ builder.Services.AddCors(options =>
 var app = builder.Build()
     .AddEndpoints();
 
-var socketInitiator = app.Services.GetRequiredService<IInitiator>();
-socketInitiator.Start();
+app.Services.GetRequiredService<IInitiator>()
+    .Start();
 
 app.UseCors(configuracao.CorsPolicy!);
 app.MapHub<TradingHub>("/tradingHub");

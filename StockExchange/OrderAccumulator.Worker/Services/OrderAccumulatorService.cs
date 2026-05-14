@@ -8,9 +8,9 @@ public interface IOrderAccumulatorService
 public class OrderAccumulatorService : IOrderAccumulatorService
 {
     public bool ValidateNewOrder(NewOrder newOrder) => 
-        ValidateValueExposure(newOrder);
+        TransactionValueExceededExposureValue(newOrder);
     
-    private static bool ValidateValueExposure(NewOrder newOrder)
+    private static bool TransactionValueExceededExposureValue(NewOrder newOrder)
     {
         decimal newValueExposure;
         

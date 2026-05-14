@@ -18,12 +18,12 @@ public class AcceptorApplication(IOrderAccumulatorService orderAccumulatorServic
     {
         var isValid = orderAccumulatorService.ValidateNewOrder(ConvertNewSingleOrderToNewOrder(order));
         
-        var report = CreateReport(order, isValid);
+        var report = CreateExecutionReport(order, isValid);
 
         SendMessage(report, sessionID);
     }
 
-    private static ExecutionReport CreateReport(NewOrderSingle order, bool isValid) =>
+    private static ExecutionReport CreateExecutionReport(NewOrderSingle order, bool isValid) =>
         new(new OrderID(Guid.NewGuid().ToString()),
             new ExecID(Guid.NewGuid().ToString()),
             new ExecType(isValid ? ExecType.NEW : ExecType.REJECTED),
