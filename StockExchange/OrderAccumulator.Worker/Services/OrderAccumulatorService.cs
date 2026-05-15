@@ -1,10 +1,5 @@
 namespace OrderAccumulator.Worker.Services;
 
-public interface IOrderAccumulatorService
-{
-    bool ValidateNewOrder(NewOrder newOrder);
-}
-
 public class OrderAccumulatorService : IOrderAccumulatorService
 {
     public bool ValidateNewOrder(NewOrder newOrder) => 

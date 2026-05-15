@@ -1,14 +1,5 @@
 namespace OrderGenerator.API.Services;
 
-public interface IShareService
-{
-    void Save(Share share);
-    void ProcessOperation(Order order);
-    Result<ShareResponseDto> GetShare(Guid code);
-    IEnumerable<ShareResponseDto> GetShares();
-    Result<Share> CreateShareIfNotExistAndValidate(NewOrderRequestDto dto);
-}
-
 public class ShareService : IShareService
 {
     public void Save(Share share) =>

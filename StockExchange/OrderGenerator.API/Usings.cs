@@ -24,5 +24,6 @@ global using OrderGenerator.API.Infrastructure.DTOs;
 global using OrderGenerator.API.Infrastructure.Enums;
 global using OrderGenerator.API.Infrastructure.Extensions;
 global using OrderGenerator.API.Infrastructure.Gateway;
+global using OrderGenerator.API.Interfaces;
 global using OrderGenerator.API.Routes;
 global using OrderGenerator.API.Services;

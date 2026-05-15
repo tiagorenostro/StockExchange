@@ -12,5 +12,6 @@ global using OrderAccumulator.Worker.Constants;
 global using OrderAccumulator.Worker.Infrastructure.Communication;
 global using OrderAccumulator.Worker.Infrastructure.Configuration;
 global using OrderAccumulator.Worker.Infrastructure.Database;
+global using OrderAccumulator.Worker.Interfaces;
 global using OrderAccumulator.Worker.Services;
 global using OrderAccumulator.Worker.Worker;

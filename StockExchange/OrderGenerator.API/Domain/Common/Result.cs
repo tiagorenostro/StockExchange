@@ -36,7 +36,6 @@ public readonly struct Result<T>
         new(false, default!, new Error(errorType, messageError, fields));
     public static Result<T> Fail(Error error) => new(false, default!, error);
     public Result OnSuccess(Func<T, Result> next) => !Success ? Result.Fail(Error) : next(Value);
-    public Result<T> OnSuccess(Func<T, Result<T>> next) => !Success ? Fail(Error) : next(Value);
     public Result<T> OnSuccess(Func<Result<T>> next) => !Success ? Fail(Error) : next();
 }
 
